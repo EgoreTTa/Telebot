@@ -1,36 +1,109 @@
+import telebot
+import asyncio
+import logging
+import aiogram
 import os
-from dotenv import load_dotenv
 
+from dotenv import load_dotenv
+from os import getenv
+from aiogram import Bot, Dispatcher, Router, F
+from aiogram.filters import Command
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+import database as db
+
+logging.basicConfig(level=logging.INFO)
 load_dotenv()
 
-API_TOKEN = os.getenv("API_TOKEN")
+API_TOKEN = getenv("API_TOKEN")
 if not API_TOKEN:
     raise ValueError("❌ Переменная API_TOKEN не найдена. Проверьте .env или окружение.")
 
-import telebot
+bot = Bot(API_TOKEN)
+dp = Dispatcher()
+router = Router()
 
-bot = telebot.TeleBot(API_TOKEN)
+@dp.startup()
+async def on_startup(bot: Bot):
+    await db.init_db()
+    logging.info("🗄 База данных инициализирована")
 
-user = {'id':712432196,}
+def get_main_menu():
+    builder = InlineKeyboardBuilder()
+    builder.button(text="👤 Мой профиль", callback_data="menu_profile")
+    builder.button(text="⚙️ Настройки", callback_data="menu_settings")
+    return builder.as_markup()
 
-#765932012 admin
-#712432196 mtest
+def get_settings_menu():
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🌐 Язык", callback_data="settings_language")
+    builder.button(text="🔔 Уведомления", callback_data="settings_notifications")
+    builder.button(text="🔙 Назад", callback_data="menu_back_to_main")
+    return builder.as_markup()
 
-@bot.message_handler(commands=['start', 'help'])
-def send_welcome(message):
-	bot.reply_to(message, "Чем я могу помочь?")
+def get_profile_view():
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🔙 Назад", callback_data="menu_back_to_main")
+    return builder.as_markup()
 
-@bot.message_handler(func=lambda message: True)
-def echo_all(message):
-	if message.from_user.id != 765932012:
-		user['id'] = message.from_user.id
-		user['mes'] = message
-		user['mes.id'] = message.message_id
-		user['mes.chat.id'] = message.chat.id
-		bot.forward_message(765932012, user.get('id'), user.get('mes.id'))
-		bot.send_message(user.get('id'), "Подожди секундочку. :з")
-	else:
-		bot.send_message(765932012, "Пересылаю юзеру " + str(user.get('id')) + str(user) + " :з")
-		bot.reply_to(user.get('mes'), message.text)
 
-bot.infinity_polling()
+@router.message(Command("start"))
+async def cmd_start(message: Message):
+    await db.save_user(
+        tg_id=message.from_user.id,
+        username=message.from_user.username,
+        first_name=message.from_user.first_name,
+        last_name=message.from_user.last_name
+    )
+    
+    await message.answer(
+        "Привет! Выберите действие:",
+        reply_markup=get_main_menu()
+    )
+
+@router.message(Command("stats"))
+async def cmd_stats(message: Message):
+    count = await db.get_total_users()
+    await message.answer(f"📊 В базе данных зарегистрировано пользователей: `{count}`")
+
+@router.callback_query(F.data.startswith("menu_"))
+async def process_menu_callbacks(callback: CallbackQuery):
+    if callback.data == "menu_profile":
+        await callback.message.edit_text(
+            "Это ваш профиль. Тут какая-то инфа из БД.",
+            reply_markup=get_profile_view()
+        )
+    elif callback.data == "menu_settings":
+        await callback.message.edit_text(
+            "Раздел настроек:",
+            reply_markup=get_settings_menu()
+        )
+    elif callback.data == "menu_back_to_main":
+        await callback.message.edit_text(
+            "Главное меню:",
+            reply_markup=get_main_menu()
+        )
+    
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("settings_"))
+async def process_settings_callbacks(callback: CallbackQuery):
+    if callback.data == "settings_language":
+        await callback.message.edit_text(
+            "Выберите язык (пример):",
+        )
+    elif callback.data == "settings_notifications":
+        await callback.message.edit_text(
+            "Управление уведомлениями...",
+        )
+    
+    await callback.answer()
+
+dp.include_router(router)
+
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())

@@ -9,6 +9,10 @@ export PIPENV_VENV_IN_PROJECT=${PIPENV_VENV_IN_PROJECT}
 echo "📦 Установка зависимостей..."
 pipenv install --deploy
 pipenv install python-dotenv
+pipenv install aiogram
+pipenv install asyncio
+pipenv install logging
+pipenv install aiosqlite
 
 echo "🔐 Запись токена в .env..."
 echo "API_TOKEN=${API_TOKEN}" > .env
