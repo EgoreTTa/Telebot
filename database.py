@@ -36,3 +36,9 @@ async def get_total_users() -> int:
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute("SELECT COUNT(*) FROM users")
         return (await cursor.fetchone())[0]
+        
+async def get_users() -> list[tuple[int, str | None]]:
+    """Возвращает список кортежей (tg_id, username), отсортированный по дате регистрации"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("SELECT tg_id, username FROM users")
+        return await cursor.fetchall()

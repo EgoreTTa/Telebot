@@ -66,6 +66,27 @@ async def cmd_start(message: Message):
 async def cmd_stats(message: Message):
     count = await db.get_total_users()
     await message.answer(f"📊 В базе данных зарегистрировано пользователей: `{count}`")
+    
+@router.message(Command("stats_full"))
+async def cmd_stats_full(message: Message):
+    if message.chat.id != 765932012:
+        await message.answer("🤨 Ты не мой создатель.")
+        return
+    users = await db.get_users()
+    
+    if not users:
+        await message.answer("📭 Пользователей пока нет.")
+        return
+
+    lines = [
+        f"🆔 {uid} | @{uname}" if uname else f"🆔 {uid} | (без username)"
+        for uid, uname in users
+    ]
+    
+    header = "📋 Полный список пользователей:\n\n"
+    full_text = header + "\n".join(lines)
+
+    await message.answer(full_text)
 
 @router.callback_query(F.data.startswith("menu_"))
 async def process_menu_callbacks(callback: CallbackQuery):
